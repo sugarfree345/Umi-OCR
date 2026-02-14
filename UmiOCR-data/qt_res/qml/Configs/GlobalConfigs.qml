@@ -44,6 +44,15 @@ Configs {
                         return changeShortcut(newFlag, "startup")
                 },
             },
+            "startupAdmin": {
+                "title": qsTr("管理员权限运行"),
+                "default": false,
+                "toolTip": qsTr("需要管理员授权创建计划任务，之后登录可静默启动"),
+                "onChanged": (newFlag, oldFlag)=>{
+                    if(oldFlag !== undefined)
+                        return changeAdminStartup(newFlag)
+                },
+            },
         },
 
         // 界面和外观
@@ -384,6 +393,30 @@ Configs {
             }
             else {
                 qmlapp.popup.message(qsTr("提示"), qsTr("没有找到可移除的快捷方式。"), "warning")
+            }
+        }
+    }
+
+    // 添加/删除管理员自启任务
+    function changeAdminStartup(flag) {
+        if(flag) {
+            const res = globalConfigConn.createAdminStartupTask()
+            if(res === "[Success]") {
+                qmlapp.popup.simple(qsTr("已启用管理员权限自启"), "")
+            }
+            else {
+                qmlapp.popup.message(qsTr("启用管理员自启失败"), res, "error")
+                return true // 阻止变化
+            }
+        }
+        else {
+            const res = globalConfigConn.deleteAdminStartupTask()
+            if(res === "[Success]") {
+                qmlapp.popup.simple(qsTr("已关闭管理员权限自启"), "")
+            }
+            else {
+                qmlapp.popup.message(qsTr("关闭管理员自启失败"), res, "error")
+                return true // 阻止变化
             }
         }
     }

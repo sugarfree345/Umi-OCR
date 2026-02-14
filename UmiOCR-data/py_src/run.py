@@ -42,8 +42,30 @@ SOFTWARE.
 import os
 import sys
 import site
+import platform
 
 
+
+def get_app_data_dir(app_name="umiorc"):
+    system = platform.system()
+    
+    if system == "Windows":
+        # Windows 对应 %APPDATA%
+        base_dir = os.environ.get('APPDATA')
+    elif system == "Linux":
+        # Linux 遵循 XDG 标准，通常是 ~/.config
+        base_dir = os.path.expanduser("~/.config")
+    else:
+        # macOS 对应 Application Support
+        base_dir = os.path.expanduser("~/Library/Application Support")
+    
+    # 拼接完整的程序目录
+    target_dir = os.path.join(base_dir, app_name)
+    
+    # 核心：手动创建文件夹，解决 QML 无法建目录的问题
+    if not os.path.exists(target_dir):
+        os.makedirs(target_dir, exist_ok=True)
+    return target_dir
 # 启动主qml。工作路径必须为 UmiOCR-data
 def runQml(engineAddImportPath):
     # ==================== 0. 导入包 ====================
@@ -111,6 +133,10 @@ def runQml(engineAddImportPath):
 
     # ==================== 6. 启动qml引擎 ====================
     engine = QQmlApplicationEngine()
+    appDataDir = get_app_data_dir()
+    settingsPath = os.path.join(appDataDir, ".settings")  # 配置文件路径
+    # 将准确配置文件路径传给QML
+    engine.rootContext().setContextProperty("CONFIG_PATH", settingsPath)
     if engineAddImportPath:
         engine.addImportPath(engineAddImportPath)  # 相对路径重新导入包
     engine.addImageProvider("pixmapprovider", PixmapProvider)  # 注册图片提供器

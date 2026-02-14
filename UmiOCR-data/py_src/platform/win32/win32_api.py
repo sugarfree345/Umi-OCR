@@ -4,6 +4,8 @@
 
 import os
 import subprocess
+import time
+import ctypes
 from PySide2.QtCore import QStandardPaths as Qsp, QFile, QFileInfo
 
 from umi_log import logger
@@ -85,6 +87,129 @@ class _Shortcut:
         return num
 
 
+# ==================== 管理员自启任务 ====================
+class _AdminStartupTask:
+    @staticmethod
+    def _getTaskName():
+        app_name = UmiAbout["name"].replace(" ", "")
+        return f"{app_name}.AdminStartup"
+
+    @staticmethod
+    def _isAdmin():
+        try:
+            return bool(ctypes.windll.shell32.IsUserAnAdmin())
+        except Exception:
+            return False
+
+    @staticmethod
+    def _taskExists(task_name):
+        res = subprocess.run(
+            ["schtasks", "/Query", "/TN", task_name],
+            capture_output=True,
+            text=True,
+            shell=False,
+        )
+        return res.returncode == 0
+
+    @staticmethod
+    def _waitTask(task_name, exists=True, timeout=3.0):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            if _AdminStartupTask._taskExists(task_name) == exists:
+                return True
+            time.sleep(0.1)
+        return False
+
+    @staticmethod
+    def _runSchTasks(args):
+        return subprocess.run(
+            ["schtasks"] + args,
+            capture_output=True,
+            text=True,
+            shell=False,
+        )
+
+    @staticmethod
+    def _runSchTasksElevated(args):
+        cmdline = subprocess.list2cmdline(args)
+        res = ctypes.windll.shell32.ShellExecuteW(
+            None, "runas", "schtasks.exe", cmdline, None, 1
+        )
+        if res <= 32:
+            return False, "[Error] 无法获取管理员权限。\nPlease approve the UAC prompt."
+        return True, ""
+
+    # 创建管理员自启任务
+    @staticmethod
+    def createAdminStartupTask():
+        app_path = UmiAbout["app"]["path"]
+        if not app_path or not os.path.exists(app_path):
+            return (
+                "[Error] 未找到程序exe文件。请尝试手动设置自启。\n"
+                "[Error] Exe path not exist. Please set auto-start manually.\n\n"
+                f"{app_path}"
+            )
+
+        task_name = _AdminStartupTask._getTaskName()
+        if _AdminStartupTask._taskExists(task_name):
+            return "[Success]"
+
+        args = [
+            "/Create",
+            "/TN",
+            task_name,
+            "/SC",
+            "ONLOGON",
+            "/RL",
+            "HIGHEST",
+            "/F",
+            "/TR",
+            app_path,
+        ]
+
+        if _AdminStartupTask._isAdmin():
+            res = _AdminStartupTask._runSchTasks(args)
+            if res.returncode == 0:
+                return "[Success]"
+            err = res.stderr.strip() or res.stdout.strip()
+            return f"[Error] {err}"
+
+        ok, err = _AdminStartupTask._runSchTasksElevated(args)
+        if not ok:
+            return err
+        if _AdminStartupTask._waitTask(task_name, True):
+            return "[Success]"
+        return (
+            "[Error] 未能确认已创建管理员自启任务。\n"
+            "Please check Task Scheduler manually."
+        )
+
+    # 删除管理员自启任务
+    @staticmethod
+    def deleteAdminStartupTask():
+        task_name = _AdminStartupTask._getTaskName()
+        if not _AdminStartupTask._taskExists(task_name):
+            return "[Success]"
+
+        args = ["/Delete", "/TN", task_name, "/F"]
+        if _AdminStartupTask._isAdmin():
+            res = _AdminStartupTask._runSchTasks(args)
+            if res.returncode == 0:
+                return "[Success]"
+            err = res.stderr.strip() or res.stdout.strip()
+            return f"[Error] {err}"
+
+        ok, err = _AdminStartupTask._runSchTasksElevated(args)
+        if not ok:
+            return err
+        if _AdminStartupTask._waitTask(task_name, False):
+            return "[Success]"
+        return (
+            "[Error] 未能确认已删除管理员自启任务。\n"
+            "Please check Task Scheduler manually."
+        )
+
+
 # ==================== 硬件控制 ====================
 class _HardwareCtrl:
     # 关机
@@ -103,6 +228,9 @@ class Api:
     # 快捷方式。接口： createShortcut deleteShortcut
     # 参数：快捷方式位置， desktop startMenu startup
     Shortcut = _Shortcut()
+
+    # 管理员自启任务。接口： createAdminStartupTask deleteAdminStartupTask
+    AdminStartupTask = _AdminStartupTask()
 
     # 硬件控制。接口： shutdown hibernate
     HardwareCtrl = _HardwareCtrl()

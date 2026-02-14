@@ -5,5 +5,5 @@
 import Qt.labs.settings 1.0
 
 Settings {
-    fileName: "./.settings" // 配置文件名
+    fileName: CONFIG_PATH
 }

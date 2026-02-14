@@ -26,6 +26,16 @@ class GlobalConfigsConnector(QObject):
     def deleteShortcut(self, position):
         return Platform.Shortcut.deleteShortcut(position)
 
+    # 创建管理员自启任务
+    @Slot(result=str)
+    def createAdminStartupTask(self):
+        return Platform.AdminStartupTask.createAdminStartupTask()
+
+    # 删除管理员自启任务
+    @Slot(result=str)
+    def deleteAdminStartupTask(self):
+        return Platform.AdminStartupTask.deleteAdminStartupTask()
+
     # 获取UI语言信息
     @Slot(result="QVariant")
     def i18nGetInfos(self):
