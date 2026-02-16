@@ -46,7 +46,7 @@ import platform
 
 
 
-def get_app_data_dir(app_name="umiorc"):
+def get_app_data_dir(app_name="umiocr"):
     system = platform.system()
     
     if system == "Windows":
